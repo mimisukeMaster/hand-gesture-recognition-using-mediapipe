@@ -165,7 +165,8 @@ ___
 <img src="https://user-images.githubusercontent.com/37477845/102345850-54ede380-3fe1-11eb-8d04-88e351445898.png" width="80%"><br>
 (★`allkeypoints`の場合)<br>
 1列目：押下した数字(クラスIDとして使用)、2列目以降：座標履歴(2×21×16=672列)<br>
---------------- ここに~~allkeypoints.csv excel画像 ---------------<br>
+![allkeypoints_csv_view](https://user-images.githubusercontent.com/81568941/158016809-eedb25ce-f3be-4b70-a30a-879d6c73fcb6.png)
+<br>
 ___
 キーポイント座標は以下の前処理を④まで実施したものを保存します。<br>
 <img src="https://user-images.githubusercontent.com/37477845/102244148-49e27700-3f3f-11eb-82e2-fc7de42b30fc.png" width="80%"><br>
@@ -197,10 +198,12 @@ ___
 #### Y.モデル構造 ii
 「[point_history_classification_allkeypoints.ipynb](point_history_classification_allkeypoints.ipynb)」で用意しているモデルのイメージは以下です。
 <br>
---------------- ここにallkeypoints_h_cla_model_con ---------------<br>
+![allkeypoints_h_cla_model_con](https://user-images.githubusercontent.com/81568941/158016911-82556906-71b7-4248-9164-f9eee0268b54.png)
+
 「LSTM」を用いたモデルは以下です。<br>使用する際には「use_lstm = False」を「True」に変更してください。
 <br>
---------------- ここにallkeypoints_h_cla_model_lstm_con ---------------<br>
+![allkeypoints_h_cla_model_lstm_con](https://user-images.githubusercontent.com/81568941/158016928-1866bf3a-8f04-4808-a237-d8c67448e5de.png)
+<br>
 ### モデルをONNXファイルで保存
 [point_history_classification_allkeypoints.ipynb](point_history_classification_allkeypoints.ipynb)で学習した結果のモデルを、ONNXファイルで保存できます。<br>
 > ONNXファイルにすると、Unity内でBarracuda、mediapipeを用いて、ジェスチャ認識モデルとして使うことができます。<br>
@@ -235,7 +238,8 @@ python History_log_show.py
 
 以下は実行時のサンプルです
 <br>
---------------- ここにmymedpip.gif ---------------<br>
+![mymedpip](https://user-images.githubusercontent.com/81568941/158016985-0c5b68c3-b3b0-47cb-b208-6091498eae1c.gif)
+<br>
 - row_ID<br>現在再生しているジェスチャの行番号
 - GestureLabel<br>現在再生しているジェスチャの[ラベル](model/point_history_classifier/point_history_classifier_label_allkeypoints.csv)番号(何のジェスチャをしているか)<br>
 =======================================<br>
