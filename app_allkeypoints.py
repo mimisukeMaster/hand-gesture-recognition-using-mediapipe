@@ -88,41 +88,47 @@ def main():
     # FPS計測モジュール ########################################################
     cvFpsCalc = CvFpsCalc(buffer_len=10)
 
-    # 座標履歴 dequeはPythonのデータ型の一種(リストとか配列とか) maxlenは要素数の最大を指定し超えたら逆側から削除
+    # 座標履歴 maxlenは要素数の最大を指定、超過時古いものから削除
     history_length = 16
     
+    num_keypoints = 21  # mediapipeで使用されている手の節点(keypoints)の数
+    
     points_histories = deque(maxlen=history_length) 
-    # point_historyは二次元の列で直近16個(記録数)の人差し指の座標を保存するもの dequeにdeque列を渡す、そのdeque列の個数はhistory_landmark_list
+
     # 16回の指の座標の記録分が二次元[x,y]で,それが２１本分
     ''' 2 * 21 * 16 の <list> in <list> in <deque> 多次元配列. deque = ([]) empty i.e.
             deque([
-        1個目        [
+        1点目        [
                         [x0,y0],[x1,y1],[x2,y2], ...[x21,y21] 全指
                     ],
-        2個目        [
+        2点目        [
                         [x0,y0],[x1,y1],[x2,y2], ...[x21,y21]
                     ],
-        3個目        [
+        3点目        [
                         [x0,y0],[x1,y1],[x2,y2], ...[x21,y21]
                     ],
-    |    :     ...    
-    V   16個目       [
+    ↓   :     ...    
+        16点目       [
     時系列16記録分         [x0,y0],[x1,y1],[x2,y2], ...[x21,y21]
                     ]
                 ])
                 
-    型は deque([ list[ list[2] ] ])
+    型は deque([ list[ list[float,float],*21 ],*16 ])
     '''
 
-    # フィンガージェスチャー履歴 モデル判定結果番号いれる用##########################
+    # フィンガージェスチャー履歴 ##################################################
     finger_gesture_history = deque(maxlen=history_length)
     
-    # history_gesture_historyはモデルがpoint_historyの記録から判定してこれだと
-    # returnされたジェスチャのindex番号を直近16回分集めた列(deque)
-    # (16回判定したその番号たちがindex番号で(1,1,1,2,2,1,2,3…)みたいになってる)
+    # モデルで手の動きを判定した結果を番号を入れていくもの 
+    
+    ''' NOTE:
+    # finger_gesture_historyはモデルがpoint_historyの記録から判定した結果を
+    # ジェスチャのindex番号で返し、それを直近16回分集めた列(deque)
+    # (16回判定したそのindex番号が(1,1,1,2,2,1,2,3…)のようになる)
+    '''
 
-    #  ########################################################################
-    mode = 0 # defaultは0にしておいてlogでreturnされるように
+    #  #####################################################################
+    mode = 0 # 0 はlogging_csv()にて何もデータをとらないモード
 
     while True:
         fps = cvFpsCalc.get()
@@ -133,90 +139,78 @@ def main():
             break
         number, mode = select_mode(key, mode)#どのキー押されてモードは何か　どこで人さし指だけって決めてるのかはハンドサイン分類のとこ
 
-        # カメラキャプチャ #####################################################
+        # カメラキャプチャ ####################################################
         ret, image = cap.read()
         if not ret:
             break
         image = cv.flip(image, 1)  # ミラー表示
         debug_image = copy.deepcopy(image)
 
-        # 検出実施 #############################################################
+        # 検出実施 ##########################################################
         image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
 
         image.flags.writeable = False
         results = hands.process(image)
         image.flags.writeable = True
 
-        # なんか検出した結果があったら ぐちゃぐちゃやらない限り普通あるんだけど#############
-        # ここOutput、またはmodeによっては学習データ取りね#################################
+        # 手を検出した場合（処理結果あり）#########################################
         if results.multi_hand_landmarks is not None:
             for hand_landmarks, handedness in zip(results.multi_hand_landmarks,
                                                   results.multi_handedness):
                 # 外接矩形の計算
                 brect = calc_bounding_rect(debug_image, hand_landmarks)
-                # ランドマークの計算listはint,int..
+                # ランドマークの計算 (landmark_listはintの列)
                 landmark_list = calc_landmark_list(debug_image, hand_landmarks)
 
                 # 相対座標・正規化座標への変換
                 pre_processed_landmark_list = pre_process_landmark(
                     landmark_list)
                 
-                # 一次元配列として 各本の2座標 * 時系列16 * 全21点 を平滑化して返す,これはxy*本数*時系列
+                # 一次元配列として 1点の 2 座標成分 * 全 21 点 * 16 フレーム分 を平滑化して返す
                 pre_processed_point_history_list = pre_process_point_history(
                 debug_image, points_histories)
                 
                 
-                # 学習データ保存(k h じゃなかったら(mode=0)returnされるから大丈夫)
+                # 学習データ保存("k","h"キー が押されていなかったら(mode=0の時)はすぐに関数を抜ける)
                 logging_csv(number, mode, pre_processed_landmark_list,
                             pre_processed_point_history_list)
 
                 # ハンドサイン分類-keypoint
                 hand_sign_id = keypoint_classifier(pre_processed_landmark_list) 
-                #モデルから判別key pointでこれはpointerです、てなった前提でpoint_historyの処理が始まる
                 
-                # 常時point_histories上書き 全点の位置を追加してる　時系列データではない　時系列はこの処理が何回もされることでできる
+                # CHANGED:常にジェスチャ認識モードにするためコメントアウト
+                # if hand_sign_id == 2:  # 指差しサイン
+                #     point_history.append(landmark_list[8])  # 人差指座標
+                # else:
+                #     point_history.append([0, 0])                
+                
+                                
+                # 常にpoint_historiesを上書き
+                # 全点の位置(2 * 21)のデータを追加しており、16フレームはこの処理が何回もされることで出来る
                 points_histories.append(landmark_list)
-                '''全キーポイント座標を保存してく(ここ学習データlogとってんじゃないよ）
-                # この列からモデルが判定して今何のシーケンスhistoryジェスチャしてるか判定する(indexで返す)
-                #シーケンスhistory判定はココのリストの個々の要素から判定してる
-                #points_historiesに(全キーポイントの)データ追加してるのはここでのみ,後は[0,0]でデータなし的扱いで代入する箇所ぐらい
-                
-                # 常時16記録分でどんどん上書きされ過去のから消える
-                
-                # 緑に光らせるのはここの列を使っているのもある
-                
-                #--------init Q-----------
-                # Point記録してモデル作成する際の、スタートした後、一連の動きの区切れ目の時間はどのくらいなのか => 16個の点をとって学習モデル生成時もそれで生成してる
-                #＃ どこをスタートにして１８点とってるのか =>historyは１点をシーケンスで直近16記録分取っておりkeypointは
-                #何フレーム撮ってるのかみる
-                #### 一本(人差し指)での動き分かれば２１本分のデータも取れるよね
-                # 人差し指がどう動いてるか確かめよう どこからとってるのか、どのくらいとってるのか
-                #--------- TODO ----------------
-                # 21本の点を記録し1*16ではなく21*16の配列でとってモデルを生成(学習)させる
-                # つまりPythonこのファイルで21本分とれるように改変し、model生成ipynbの方も21本の動きを学習駅るように改変する
-                 # ここのScriptはpoint_historyで人差し指の点一本の16記録分シーケンス列取ってるのでこのpoint_hisotory的なの21こ必要 
+                '''
+                # points_historiesにデータを追加するのはここと、[0,0]のlistで空データ代入する所のみ
+                # deque(max制限=16要素)で上書きされ過去のから消えていく
                 '''
  
                 # フィンガージェスチャー分類-history
-                finger_gesture_id = 0 #0ならなにも描画されない処理される(下いっても0ということはそもそもモデル使って判別してない)
+                finger_gesture_id = 0  
                 point_history_len = len(pre_processed_point_history_list)
                 
-                #各21本のキーポイント16時系列分集まったら
-                if point_history_len == (history_length * 2 * 21):
+                # 各21点 * 16時系列分 集まったとき
+                if point_history_len == (history_length * 2 * num_keypoints):
                     
                     finger_gesture_id = point_history_classifier(
                         pre_processed_point_history_list) 
                         
-                    #モデル使って判別, 一行に21本分のデータあるから判別の仕方ipynbで変えないとね
-                    #一行1本で index+16数値 だった前とは違うんやで
-                    # 結果のシーケンスジェスチャのID返す
+                    # モデル使って判別、結果としてジェスチャのラベル番号(ID)を返す
 
-                # 直近検出の中で最多のジェスチャーIDを算出finger_gesture_history max 16の列(historyだよ)
+                # 直近検出の中で最多のジェスチャーIDを算出 (最も頻出の番号)
                 finger_gesture_history.append(finger_gesture_id)
                 most_common_fg_id = Counter(
-                    finger_gesture_history).most_common() #16こid番号ができて,
-                # どんどん上書き古いのから削除だったよね)もっとの頻出の番号を検出
-                # 16回モデルで判別してから最多のシーケンスジェスチャを画像のUIとして表示
+                    finger_gesture_history).most_common() 
+                
+                # NOTE 16回モデルで判別してから最多のシーケンスジェスチャを検出
 
                 # 描画
                 debug_image = draw_bounding_rect(use_brect, debug_image, brect)
@@ -232,34 +226,40 @@ def main():
                 # landmark check
                 debug_image = draw_landmarklist(debug_image, pre_processed_landmark_list)               
 
-        else:# なんも検出できなかった
+        else:  # 手が検出できなかったとき
             
-            # points_e は全キーポイントの座標を取っておく列、21こ([0,0]で空データ),これが並ぶことでpoints_historiesが時系列データに
-            for points_e in points_histories: #points_eはlist[(key) list[(pos) ] ]型,ある一時の全座標
-                    points_e.append([0, 0]) #各キーポイントを指定して21回Appendされるこのpoints_eは[[x0,y0],[x1,y1],...]の配列
+            # 空データで補填
+            points_histories.append([[0] * 2 for i in range(num_keypoints)])
+                                
+        # ========================================
         
-        
-        #緑に光らせる,加工画像を上書き代入　手が検出されなかった(else通ってきた)なら未加工で返ってくる
-        for i in range(21): #各キーポイントに対して, i は21こ
+        # == 緑に光らせる、加工画像を上書き代入　手が検出されなかった場合加工なしで返る
+        for i in range(num_keypoints):                                # 各点に対して 
             point_history = []
-            for _, points in enumerate(points_histories): #_は16こ
+            ######
+            for _, points in enumerate(points_histories):  # 16回ループする
                 
                 point_history.append(points[i])
-                # pointsは各点の座標[[xp0,yp0],[xp1,yp1],...[xp20,yp20]]_のindexは16    
+                # pointsは1フレームの各点の座標[[x pt0,y pt0],[xpt1,ypt1],...[xpt20,ypt20]]
                 # points[i]は一点の座標［x,y］
                     
-                #pointsのi番目のキーポイントの座標しかappendされないはず
-                #point_historyは[[xt0,yt0],[xt1,yt1]]となるはずゆびは一点のはず
-            #一本の指について[[xt0,yt0],[xt1,yt1],..[xt15,yt15]]ができてほしい
+                # pointsのi番目の点の座標のみappendされる
+                # point_historyは1点の時系列[[xf0,yf0],[xf1,yf1]...]となる
+            
+            # 組み換え処理後、point_historyは1点について[[xt0,yt0],[xt1,yt1],..[xt15,yt15]]ができる
+            
+            ######
+            
+            #16フレーム分ループしてできたlistを送り画像生成    
+            debug_image = draw_point_history(debug_image, point_history)  # ここが21回実行
         
-            #seq16ループしてできたlist送って画像生成    
-            debug_image = draw_point_history(debug_image, point_history)
+        # == 
+        # ここでfor全て抜けたので全点の緑加工終了
         
-        #ここでforfor抜けたから全点の緑加工が終わってる
-        
+        # 情報描画
         debug_image = draw_info(debug_image, fps, mode, number)
 
-        # 画面反映 #############################################################
+        # 画面反映 ##########################################################
         cv.imshow('Hand Gesture Recognition', debug_image)
 
     cap.release()
@@ -306,8 +306,7 @@ def calc_landmark_list(image, landmarks):
     for _, landmark in enumerate(landmarks.landmark):
         landmark_x = min(int(landmark.x * image_width), image_width - 1)
         landmark_y = min(int(landmark.y * image_height), image_height - 1)
-        # landmark_z = landmark.z
-
+        
         landmark_point.append([landmark_x, landmark_y])
 
     return landmark_point
@@ -343,7 +342,7 @@ def pre_process_landmark(landmark_list):
 def pre_process_point_history(image, points_histories):
     image_width, image_height = image.shape[1], image.shape[0]
 
-    temp_points_histories = copy.deepcopy(points_histories) #temp_point_historyは３次元配列
+    temp_points_histories = copy.deepcopy(points_histories) # temp_point_historyは３次元配列
 
     # 相対座標に変換
     base_x, base_y = 0, 0
@@ -358,7 +357,7 @@ def pre_process_point_history(image, points_histories):
             temp_points_histories[seq][index][1] = (temp_points_histories[seq][index][1] -
                                             base_y) / image_height
             
-    # 1次元リストに変換 時系列、指、それら含めた3次元配列を１次元に変換, chain~~は2次元のみ対応
+    # 1次元リストに変換 時系列、点、それら含めた3次元配列を１次元に変換, from_iterbleは2次元の列のみ対応
     # 2回平滑化して完全な一次元配列に
     temp_points_histories_flater = list(
         itertools.chain.from_iterable(temp_points_histories))
@@ -370,26 +369,35 @@ def pre_process_point_history(image, points_histories):
 
 
 def logging_csv(number, mode, landmark_list, point_history_list):
-    if mode == 0: #なんも指定されてない
+    
+    #default mode
+    if mode == 0: 
         pass
-    '''if mode == 1 and (0 <= number <= 9):#kモードで番号押されたとき
+    
+    # NOTE app.py を継承
+    # "k"(Logging key point) モードで番号押されたとき
+    if mode == 1 and (0 <= number <= 9):  
         csv_path = 'model/keypoint_classifier/keypoint.csv'
-        with open(csv_path, 'a', newline="") as f: # 'a'書き込み用に開き、既存ファイルがある場合は末尾に追記 new line は段落の切り方
-            writer = csv.writer(f) # csvファイルに書き込むWriterオブジェクトを変数に格納(ファイルのファイルオブジェクトを渡して、csv.writer関数を使って生成)
-            writer.writerow([number, *landmark_list]) #書いてる "(番号), (landmark_list,,)"って書かれる
-    '''
-    if mode == 2 and (0 <= number <= 9):#hモードで番号押されたとき
+        
+        # 'a': 書き込み用に開き、既存ファイルがある場合は末尾に追記
+        with open(csv_path, 'a', newline="") as f: 
+            
+            # csvファイルに書き込むWriterオブジェクトを変数に格納
+            writer = csv.writer(f) 
+            
+            # 書き込む ( "(番号), (landmark_list,,)" と書かれる)
+            writer.writerow([number, *landmark_list]) 
+    
+    #　hモードで番号押されたとき
+    if mode == 2 and (0 <= number <= 9):
         csv_path = 'model/point_history_classifier/point_history_allkeypoints.csv'
         with open(csv_path, 'a', newline="") as f:
             writer = csv.writer(f)
             writer.writerow([number, *point_history_list])
-            '''
-            上手くいったら
-            番号,全点(各点x0,y0,x1,y1,x2,y2..x20,y20)の1時系列目,全点の2時系列目...全点の16時系列目、てなる("[]" で区切られてないよ","のみ)
-             1点の追従をずっとcsv記録している
-             1つの動作は16キー(16回の連続押して生成した行)で区切っている
-             モデル生成するときもそこで区切って学習している
-            '''
+            
+            # 1行に「番号,全点(各点x0,y0,x1,y1,x2,y2..x20,y20)の1フレーム目,全点の2フレーム目...全点の16フレーム目 」の様に保存(,のみで区切る)
+            # 全点の一時の座標を記録し、1つの動作は1行分、16フレーム分で区切っている
+        
     return
 
 

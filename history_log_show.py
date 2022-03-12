@@ -3,7 +3,6 @@
 import cv2 as cv
 import numpy as np
 import time
-import tkinter
 import argparse
 
 def get_args(data_end_row):
@@ -17,22 +16,23 @@ def get_args(data_end_row):
 
     parser.add_argument("--start", type=int, default=0)
     parser.add_argument("--end", type=int, default=data_end_row)  
-    parser.add_argument('--pause_time', type=bool, default=False)
+    parser.add_argument("--pause_time", type=bool, default=False)
 
     args = parser.parse_args()
 
     return args
 
+# TODO fps指定できるようにする
 def main():
     csv_path = 'model/point_history_classifier/point_history_allkeypoints.csv'
-    DATA_RANGE = 672 + 1
+    # DATA_RANGE = 672 + 1
     
     csv_classifier_label_path = 'model/point_history_classifier/point_history_classifier_label_allkeypoints.csv'
     
     with open(csv_path, 'r', newline="") as csvfile:
         data = csvfile.readlines()
         
-    # ジェスチャのラベルデータを保持する、後で新しい変数に妥当なの割り当ててdef送る
+    # ジェスチャのラベルデータを保持
     with open(csv_classifier_label_path, 'r', newline='', encoding="utf_8") as csvlabelfile:
         labeldata = csvlabelfile.readlines()   
          
@@ -49,47 +49,48 @@ def main():
     for i, row in enumerate(data):
         if i < start_row or i > end_row:
             continue
-        # row は １行分の生データ(string型、, , ,..で区切られてる )
+        # row は １行分の生データ(string型、, , ,..)
         
-        ### 
+        # ==============================================
         ### 実際に使うデータとして
         ### row_data, gesture_label, row_id の前処理をする
-        ###
+        # ==============================================
         
-        # ","で長いStringを分割してlistにする
+        # ","で長いStringを分割してlistに変換
         row_data = row.split(',')
         
-        # 先頭のデータ(label番号)の要素を削除し、値(label番号)を取得, str->int
+        # 先頭のデータ(label番号)の要素を削除し、値(label番号)をintに変換して取得
         gesture_label = int( row_data.pop(0) ) 
         
-        # listの中身をstr,str...からfloat,float...に変換
+        # listの中身をstring配列からfloat配列に変換
         row_data = [float(s) for s in row_data] # row_dataは一次元
         
-        # 何行目を処理してるかはrow_idで行番号データ保持
+        # このforループが処理しているデータ行番号を、row_idで保持
         row_id = i + 1
         
-        # print(row_id , "行目: " , row_data)
+        # ==============================================
         
-        #################################################
-        # ジェスチャ番号をlabel対応させた文字列に変換
+        
+        
+        # ジェスチャ番号を対応するラベル番号の文字列に変換(gesture_label + 1 の行のジェスチャ名を取得)
         gesture_label_str = labeldata[gesture_label]
-        #################################################
         
-        # row_data を 16シーケンスに分割(1行に (キー押したときにその時までの)１６シーケンス時系列 が 全部ある)
+        # row_data を 16フレームに分割(1行に (キー押した時点にその時までの)１６フレームが全部ある)
         
         row_data_splited = np.array_split(row_data, 16) 
-        # raw_data_splitedは2次元配列[array([, , , ])1シーケンス目全点2*21, array([,,,])2シーケンス目全点2*21, array([,,,])]
+        # raw_data_splitedは2次元配列[array([, , , ])←1フレーム目全点2*21, array([,,,])←2フレーム目全点2*21,...]
 
-        # print(len(row_data_splited)) -> 16
-        # 各シーケンスごとにデータ描画
-        for seq in row_data_splited: # 16回ループ seqは1次元の2*21要素の配列 各シーケンスにおいて、瞬間瞬間のキーポイントらの動きを計算
+        # 各フレームごとにデータ描画
+        
+        # 16回ループ seqは1次元の 2 * 21 要素の配列 各フレーム(seq)において、瞬間の全点の動きを計算
+        for seq in row_data_splited:
             
             # 1次元配列の2*21要素のlistを2要素list * 21要素の2次元listにする
-            # [x0,y0,x0,y0,x0,y1,x2,3]を
             # [[x0,y0],[x1,y1],[x2,y2],[x3,y3],[x4,y4]...[x20,y20]]にする
             seq  = np.reshape(seq,[21,2]).tolist()    # 外側から個数指定
             
-            #ここでseqは21要素の各xyの２次元配列 print(seq)>>>
+            '''ここでseqは21要素の各xyの２次元配列 print(seq)>>>
+                # ex)
                 # [[ 0.          0.        ]
                 #  [-0.065625   -0.01666667]
                 #  [-0.1125     -0.06296296]
@@ -110,6 +111,7 @@ def main():
                 #  [ 0.06666667 -0.33703704]
                 #  [ 0.08125    -0.41111111]
                 #  [ 0.08854167 -0.48518519]]
+                '''
             
             # データから位置計算処理
             debug_image = draw_landmarks(debug_image, seq)
@@ -139,9 +141,8 @@ def main():
 
 def draw_landmarks(image, landmark_point):
         
-    # 描画時には0.~~~は値が小さすぎるので800倍程度にする + 手全体が中央に来るよう平行移動
-    # listの中身をfloat,float...からint,int...に変換(cv.lineの2ndArgはint型)
-    # numpyのmap()やint(**)は使えない(strを変換する際のみ)
+    # 描画に適した値に加工
+    # (小さすぎる値の拡大、原点の違いを埋める平行移動,floatをintに変換)
     landmark_point = list((int(x * 800 + 500), int(y * 800 + 500)) for x,y in landmark_point)            
     
     # 接続線
