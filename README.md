@@ -198,11 +198,11 @@ ___
 #### Y.モデル構造 ii
 「[point_history_classification_allkeypoints.ipynb](point_history_classification_allkeypoints.ipynb)」で用意しているモデルのイメージは以下です。
 <br>
-![allkeypoints_h_cla_model_con](https://user-images.githubusercontent.com/81568941/158016911-82556906-71b7-4248-9164-f9eee0268b54.png)
+<img src="https://user-images.githubusercontent.com/81568941/158016911-82556906-71b7-4248-9164-f9eee0268b54.png" width="50%">
 
 「LSTM」を用いたモデルは以下です。<br>使用する際には「use_lstm = False」を「True」に変更してください。
 <br>
-![allkeypoints_h_cla_model_lstm_con](https://user-images.githubusercontent.com/81568941/158016928-1866bf3a-8f04-4808-a237-d8c67448e5de.png)
+<img src="https://user-images.githubusercontent.com/81568941/158016928-1866bf3a-8f04-4808-a237-d8c67448e5de.png" width="50%">
 <br>
 ### モデルをONNXファイルで保存
 [point_history_classification_allkeypoints.ipynb](point_history_classification_allkeypoints.ipynb)で学習した結果のモデルを、ONNXファイルで保存できます。<br>
@@ -256,6 +256,7 @@ TODO:
 * [MediaPipe](https://mediapipe.dev/)
 * [Kazuhito00/mediapipe-python-sample](https://github.com/Kazuhito00/mediapipe-python-sample)
 <br>
+
 ### ONNXファイルをUnityで動かす際の参考URL
 - 手の認識<br> [HandPoseBarracuda](https://github.com/keijiro/HandPoseBarracuda)
 - Unity内でのONNXファイルを使った分類<br> [Unity Technologies製推論エンジン Barracudaがスゴイという話](https://qiita.com/highno_RQ/items/478e1145f0eb868c0f2e)
