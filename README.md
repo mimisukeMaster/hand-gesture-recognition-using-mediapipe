@@ -179,8 +179,8 @@ ___
 `app.py`同様、適宜データを追加・削除してください。
 (クレシェンド、フィニッシュは、指揮者をイメージした手の動きです)
 <br>
---------------- ここにallkeypoints_labelの各ジェスチャ写真 ---------------<br>
-<br>
+<img src="https://user-images.githubusercontent.com/81568941/158046772-6a541997-1817-4391-b703-0add36e7f2ef.gif" width="30%"> <img src="https://user-images.githubusercontent.com/81568941/158046777-f0669925-92b9-40c7-8f98-6ca57a230793.gif" width ="30%"> <img src="https://user-images.githubusercontent.com/81568941/158046782-2b2d340e-ff19-4031-9eb9-0e01e2c72d23.gif" width="30%"><br>
+
 ___
 ### 2-i.モデル訓練
 「[point_history_classification.ipynb](point_history_classification.ipynb)」をJupyter Notebookで開いて上から順に実行してください。<br>
@@ -263,6 +263,9 @@ TODO:
 
 # Author
 高橋かずひと(https://twitter.com/KzhtTkhs)
+<br>
+
+みみすけ名人 mimisukeMaster (https://twitter.com/mimisukeMaster)
  
 # License 
 hand-gesture-recognition-using-mediapipe is under [Apache v2 license](LICENSE).
